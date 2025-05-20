@@ -9,6 +9,7 @@ export const config = {
     bodyParser: false,
     responseLimit: '50mb',
   },
+  runtime: 'edge',
 };
 
 async function parseForm(req) {
@@ -92,9 +93,8 @@ export default async function handler(req, res) {
     const formData = new FormData();
     
     // Append the file buffer with a filename
-    formData.append('file', fileBuffer, {
+    formData.append('file', new Blob([fileBuffer], { type: uploaded.mimetype || 'audio/mpeg' }), {
       filename: uploaded.originalFilename || 'audio.mp3',
-      contentType: uploaded.mimetype || 'audio/mpeg',
     });
     
     formData.append('response_format', 'verbose_json');
