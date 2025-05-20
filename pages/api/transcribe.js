@@ -11,17 +11,19 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  console.log('API route hit - Method:', req.method);
+  
   // ─── CORS & Preflight ───────────────────────────────────────────────
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
-    // browser preflight
+    console.log('Handling OPTIONS request');
     return res.status(200).end();
   }
   if (req.method !== 'POST') {
-    // any other non-POST request
+    console.log('Invalid method:', req.method);
     res.setHeader('Allow', 'POST,OPTIONS');
     return res.status(405).end('Method Not Allowed');
   }
@@ -32,6 +34,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('Starting file processing...');
     const { IncomingForm } = await import('formidable');
     const form = new IncomingForm({
       uploadDir: os.tmpdir(),
@@ -39,23 +42,41 @@ export default async function handler(req, res) {
       maxFileSize: 50 * 1024 * 1024,
     });
 
+    console.log('Parsing form data...');
     const [fields, files] = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
-        if (err) reject(err);
+        if (err) {
+          console.error('Form parsing error:', err);
+          reject(err);
+        }
+        console.log('Form parsed successfully:', { fields, files });
         resolve([fields, files]);
       });
     });
 
     const uploaded = files.audio;
+    console.log('Uploaded file info:', uploaded);
+    
     const filePath = Array.isArray(uploaded)
       ? uploaded[0].filepath
       : uploaded?.filepath;
 
     if (!filePath) {
+      console.error('No file path found in upload');
       return res.status(400).json({ error: 'No file uploaded or filepath missing' });
     }
 
+    console.log('File path:', filePath);
+    console.log('Checking if file exists...');
+    
+    if (!fs.existsSync(filePath)) {
+      console.error('File does not exist at path:', filePath);
+      return res.status(400).json({ error: 'Uploaded file not found' });
+    }
+
     const prompt = fields.prompt || '';
+    console.log('Creating form data for API request...');
+    
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));
     formData.append('response_format', 'verbose_json');
@@ -63,6 +84,7 @@ export default async function handler(req, res) {
     formData.append('timestamp_granularities', 'segment');
     if (prompt) formData.append('prompt', prompt);
 
+    console.log('Sending request to Lemonfox API...');
     try {
       const response = await axios.post(
         'https://api.lemonfox.ai/v1/audio/transcriptions',
@@ -77,9 +99,12 @@ export default async function handler(req, res) {
         }
       );
 
+      console.log('API response received:', response.status);
+
       // Clean up the temporary file
       try {
         fs.unlinkSync(filePath);
+        console.log('Temporary file cleaned up');
       } catch (cleanupError) {
         console.error('Error cleaning up temporary file:', cleanupError);
       }
@@ -89,7 +114,8 @@ export default async function handler(req, res) {
       console.error('Transcription API error:', {
         status: error.response?.status,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
+        stack: error.stack
       });
       return res.status(500).json({ 
         error: 'Transcription failed',
@@ -97,7 +123,10 @@ export default async function handler(req, res) {
       });
     }
   } catch (error) {
-    console.error('Request processing error:', error);
+    console.error('Request processing error:', {
+      message: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       error: 'Failed to process request',
       details: error.message
