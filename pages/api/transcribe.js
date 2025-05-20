@@ -33,6 +33,8 @@ async function parseForm(req) {
 
 export default async function handler(req, res) {
   console.log('API route hit - Method:', req.method);
+  console.log('Environment check - WHISPER_API_KEY exists:', !!process.env.WHISPER_API_KEY);
+  console.log('Environment check - TMPDIR:', os.tmpdir());
   
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -56,6 +58,7 @@ export default async function handler(req, res) {
     console.log('Starting file processing...');
     const { fields, files } = await parseForm(req);
     console.log('Form parsed successfully');
+    console.log('Files received:', Object.keys(files));
 
     const uploaded = files.audio;
     if (!uploaded) {
