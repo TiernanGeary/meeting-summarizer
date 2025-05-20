@@ -9,7 +9,6 @@ export const config = {
     bodyParser: false,
     responseLimit: '50mb',
   },
-  runtime: 'edge',
 };
 
 async function parseForm(req) {
@@ -55,6 +54,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'API key not configured' });
   }
 
+  let filePath = null;
+
   try {
     console.log('Starting file processing...');
     const { fields, files } = await parseForm(req);
@@ -67,7 +68,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const filePath = Array.isArray(uploaded) ? uploaded[0].filepath : uploaded.filepath;
+    filePath = Array.isArray(uploaded) ? uploaded[0].filepath : uploaded.filepath;
     console.log('File path:', filePath);
 
     if (!filePath || !fs.existsSync(filePath)) {
@@ -93,8 +94,9 @@ export default async function handler(req, res) {
     const formData = new FormData();
     
     // Append the file buffer with a filename
-    formData.append('file', new Blob([fileBuffer], { type: uploaded.mimetype || 'audio/mpeg' }), {
+    formData.append('file', fileBuffer, {
       filename: uploaded.originalFilename || 'audio.mp3',
+      contentType: uploaded.mimetype || 'audio/mpeg',
     });
     
     formData.append('response_format', 'verbose_json');
@@ -114,10 +116,19 @@ export default async function handler(req, res) {
           },
           maxContentLength: Infinity,
           maxBodyLength: Infinity,
+          responseType: 'json',
+          validateStatus: function (status) {
+            return status >= 200 && status < 500; // Accept all status codes less than 500
+          }
         }
       );
 
-      console.log('API response received:', response.status);
+      console.log('API response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        data: response.data
+      });
 
       // Clean up the temporary file
       try {
@@ -127,20 +138,30 @@ export default async function handler(req, res) {
         console.error('Error cleaning up temporary file:', cleanupError);
       }
 
+      if (response.status >= 400) {
+        return res.status(response.status).json({
+          error: 'Transcription API error',
+          details: response.data
+        });
+      }
+
       return res.status(200).json(response.data);
     } catch (error) {
       console.error('Transcription API error:', {
         status: error.response?.status,
+        statusText: error.response?.statusText,
         data: error.response?.data,
         message: error.message,
         stack: error.stack
       });
 
       // Clean up the temporary file in case of error
-      try {
-        fs.unlinkSync(filePath);
-      } catch (cleanupError) {
-        console.error('Error cleaning up temporary file:', cleanupError);
+      if (filePath) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error('Error cleaning up temporary file:', cleanupError);
+        }
       }
 
       return res.status(500).json({ 
@@ -153,6 +174,16 @@ export default async function handler(req, res) {
       message: error.message,
       stack: error.stack
     });
+
+    // Clean up the temporary file in case of error
+    if (filePath) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up temporary file:', cleanupError);
+      }
+    }
+
     return res.status(500).json({ 
       error: 'Failed to process request',
       details: error.message
