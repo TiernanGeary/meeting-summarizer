@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     formData.append('file', fs.createReadStream(filePath));
     formData.append('response_format', 'verbose_json'); // includes timestamps
     formData.append('speaker_labels', 'true');
-    formData.append('timestamp_granularities[]', 'segment');
+    formData.append('timestamp_granularities', 'segment');
     if (prompt) {
       formData.append('prompt', prompt);
     }
