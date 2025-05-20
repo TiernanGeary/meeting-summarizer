@@ -14,6 +14,12 @@ export default function Home() {
       return;
     }
 
+    // Check file size
+    if (file.size > 50 * 1024 * 1024) {
+      setError('File size too large. Maximum size is 50MB.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setTranscript('');
@@ -41,10 +47,23 @@ export default function Home() {
 
       setTranscript(data.text || 'No transcript received');
     } catch (err) {
-      setError(err.message || 'An error occurred while processing your request');
       console.error('Transcription error:', err);
+      setError(err.message || 'An error occurred while processing your request');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      if (selectedFile.size > 50 * 1024 * 1024) {
+        setError('File size too large. Maximum size is 50MB.');
+        setFile(null);
+      } else {
+        setFile(selectedFile);
+        setError('');
+      }
     }
   };
 
@@ -64,15 +83,17 @@ export default function Home() {
         <input
           type="file"
           accept="audio/*"
-          onChange={(e) => {
-            setFile(e.target.files[0]);
-            setError('');
-          }}
+          onChange={handleFileChange}
           className="mb-2"
         />
         <p className="text-sm text-gray-600">
           Supported formats: MP3, WAV, M4A, etc. (Max size: 50MB)
         </p>
+        {file && (
+          <p className="text-sm text-gray-600 mt-1">
+            Selected file: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)}MB)
+          </p>
+        )}
       </div>
 
       {error && (
@@ -83,7 +104,7 @@ export default function Home() {
 
       <button
         onClick={handleUpload}
-        disabled={loading}
+        disabled={loading || !file}
         className={`w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed`}
       >
         {loading ? 'Transcribing...' : 'Upload & Transcribe'}

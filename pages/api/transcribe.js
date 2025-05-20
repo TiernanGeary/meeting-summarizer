@@ -2,6 +2,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
 import os from 'os';
+import formidable from 'formidable';
 
 export const config = {
   api: {
@@ -10,22 +11,40 @@ export const config = {
   },
 };
 
+async function parseForm(req) {
+  return new Promise((resolve, reject) => {
+    const form = formidable({
+      uploadDir: os.tmpdir(),
+      keepExtensions: true,
+      maxFileSize: 50 * 1024 * 1024,
+      maxFieldsSize: 50 * 1024 * 1024,
+    });
+
+    form.parse(req, (err, fields, files) => {
+      if (err) {
+        console.error('Form parsing error:', err);
+        reject(err);
+        return;
+      }
+      resolve({ fields, files });
+    });
+  });
+}
+
 export default async function handler(req, res) {
   console.log('API route hit - Method:', req.method);
   
-  // ─── CORS & Preflight ───────────────────────────────────────────────
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
-    console.log('Handling OPTIONS request');
     return res.status(200).end();
   }
+
   if (req.method !== 'POST') {
-    console.log('Invalid method:', req.method);
-    res.setHeader('Allow', 'POST,OPTIONS');
-    return res.status(405).end('Method Not Allowed');
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   if (!process.env.WHISPER_API_KEY) {
@@ -35,53 +54,21 @@ export default async function handler(req, res) {
 
   try {
     console.log('Starting file processing...');
-    const { IncomingForm } = await import('formidable');
-    const form = new IncomingForm({
-      uploadDir: os.tmpdir(),
-      keepExtensions: true,
-      maxFileSize: 50 * 1024 * 1024, // 50MB
-      maxFieldsSize: 50 * 1024 * 1024, // 50MB
-    });
-
-    console.log('Parsing form data...');
-    const [fields, files] = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
-        if (err) {
-          console.error('Form parsing error:', err);
-          if (err.code === 'LIMIT_FILE_SIZE') {
-            reject(new Error('File size too large. Maximum size is 50MB.'));
-          } else {
-            reject(err);
-          }
-        }
-        console.log('Form parsed successfully:', { fields, files });
-        resolve([fields, files]);
-      });
-    });
+    const { fields, files } = await parseForm(req);
+    console.log('Form parsed successfully');
 
     const uploaded = files.audio;
-    console.log('Uploaded file info:', uploaded);
-    
     if (!uploaded) {
       console.error('No file uploaded');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const filePath = Array.isArray(uploaded)
-      ? uploaded[0].filepath
-      : uploaded?.filepath;
-
-    if (!filePath) {
-      console.error('No file path found in upload');
-      return res.status(400).json({ error: 'No file uploaded or filepath missing' });
-    }
-
+    const filePath = Array.isArray(uploaded) ? uploaded[0].filepath : uploaded.filepath;
     console.log('File path:', filePath);
-    console.log('Checking if file exists...');
-    
-    if (!fs.existsSync(filePath)) {
-      console.error('File does not exist at path:', filePath);
-      return res.status(400).json({ error: 'Uploaded file not found' });
+
+    if (!filePath || !fs.existsSync(filePath)) {
+      console.error('File not found at path:', filePath);
+      return res.status(400).json({ error: 'File not found' });
     }
 
     const fileStats = fs.statSync(filePath);
@@ -94,7 +81,7 @@ export default async function handler(req, res) {
 
     const prompt = fields.prompt || '';
     console.log('Creating form data for API request...');
-    
+
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));
     formData.append('response_format', 'verbose_json');
@@ -135,6 +122,14 @@ export default async function handler(req, res) {
         message: error.message,
         stack: error.stack
       });
+
+      // Clean up the temporary file in case of error
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up temporary file:', cleanupError);
+      }
+
       return res.status(500).json({ 
         error: 'Transcription failed',
         details: error.response?.data || error.message
