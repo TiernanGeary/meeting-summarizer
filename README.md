@@ -1,45 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# Meeting Summarizer
 
-## Getting Started
+A Next.js application that transcribes audio files using the Whisper API.
 
-First, run the development server:
+## Setup
 
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Create a `.env` file in the root directory with the following variables:
+```
+PORT=3001
+WHISPER_API_KEY=your_api_key_here
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+3. Create an `uploads` directory in the root of the project:
+```bash
+mkdir uploads
+```
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+## Development
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+1. Start the Express server:
+```bash
+node server.js
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. In a separate terminal, start the Next.js development server:
+```bash
+npm run dev
+```
 
-## Learn More
+The application will be available at http://localhost:3000
 
-To learn more about Next.js, take a look at the following resources:
+## Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+- Upload audio files (MP3, WAV, M4A, etc.)
+- Automatic transcription using Whisper API
+- Speaker detection and segmentation
+- Optional context/prompt for better transcription
+- File size limit: 50MB
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API Endpoints
 
-## Deploy on Vercel
+- `POST /api/transcribe`: Upload and transcribe audio files
+- `GET /health`: Health check endpoint
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Environment Variables
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
-# meeting-summarizer
-# meeting-summarizer
-# meeting-summarizer
-# meeting-summarizer
-# meeting-summarizer
+- `PORT`: Port for the Express server (default: 3001)
+- `WHISPER_API_KEY`: Your Whisper API key
+- `NEXT_PUBLIC_API_URL`: URL of the Express server (default: http://localhost:3001)
+
+## Deployment
+
+This application requires a traditional server environment rather than serverless functions due to file handling requirements. You can deploy it to:
+
+1. A VPS (DigitalOcean, AWS EC2, etc.)
+2. Railway
+3. Render
+4. Heroku
+
+Make sure to:
+1. Set up the environment variables
+2. Create the `uploads` directory
+3. Configure CORS if needed
+4. Set up proper file cleanup
+
+## License
+
+MIT

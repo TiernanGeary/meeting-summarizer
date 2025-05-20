@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 export default function Home() {
   const [file, setFile] = useState(null);
   const [prompt, setPrompt] = useState('');
@@ -30,7 +32,7 @@ export default function Home() {
     formData.append('prompt', prompt);
 
     try {
-      const res = await fetch('/api/transcribe', {
+      const res = await fetch(`${API_URL}/api/transcribe`, {
         method: 'POST',
         body: formData,
       });
