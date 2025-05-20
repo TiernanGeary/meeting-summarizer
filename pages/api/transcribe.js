@@ -39,7 +39,8 @@ export default async function handler(req, res) {
     const form = new IncomingForm({
       uploadDir: os.tmpdir(),
       keepExtensions: true,
-      maxFileSize: 50 * 1024 * 1024,
+      maxFileSize: 50 * 1024 * 1024, // 50MB
+      maxFieldsSize: 50 * 1024 * 1024, // 50MB
     });
 
     console.log('Parsing form data...');
@@ -47,7 +48,11 @@ export default async function handler(req, res) {
       form.parse(req, (err, fields, files) => {
         if (err) {
           console.error('Form parsing error:', err);
-          reject(err);
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            reject(new Error('File size too large. Maximum size is 50MB.'));
+          } else {
+            reject(err);
+          }
         }
         console.log('Form parsed successfully:', { fields, files });
         resolve([fields, files]);
@@ -57,6 +62,11 @@ export default async function handler(req, res) {
     const uploaded = files.audio;
     console.log('Uploaded file info:', uploaded);
     
+    if (!uploaded) {
+      console.error('No file uploaded');
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
     const filePath = Array.isArray(uploaded)
       ? uploaded[0].filepath
       : uploaded?.filepath;
@@ -72,6 +82,14 @@ export default async function handler(req, res) {
     if (!fs.existsSync(filePath)) {
       console.error('File does not exist at path:', filePath);
       return res.status(400).json({ error: 'Uploaded file not found' });
+    }
+
+    const fileStats = fs.statSync(filePath);
+    console.log('File size:', fileStats.size, 'bytes');
+
+    if (fileStats.size > 50 * 1024 * 1024) {
+      console.error('File too large:', fileStats.size);
+      return res.status(400).json({ error: 'File size too large. Maximum size is 50MB.' });
     }
 
     const prompt = fields.prompt || '';
