@@ -1,6 +1,7 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
+import os from 'os';
 
 export const config = {
   api: {
@@ -15,7 +16,7 @@ export default async function handler(req, res) {
 
   const { IncomingForm } = await import('formidable');
   const form = new IncomingForm({
-    uploadDir: './',
+    uploadDir: os.tmpdir(),      // ← write into the ephemeral /tmp folder
     keepExtensions: true,
     maxFileSize: 50 * 1024 * 1024, // 50 MB
   });
