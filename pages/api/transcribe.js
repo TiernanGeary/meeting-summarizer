@@ -85,8 +85,18 @@ export default async function handler(req, res) {
     const prompt = fields.prompt || '';
     console.log('Creating form data for API request...');
 
+    // Read the file into a buffer
+    const fileBuffer = fs.readFileSync(filePath);
+    
+    // Create a new FormData instance
     const formData = new FormData();
-    formData.append('file', fs.createReadStream(filePath));
+    
+    // Append the file buffer with a filename
+    formData.append('file', fileBuffer, {
+      filename: uploaded.originalFilename || 'audio.mp3',
+      contentType: uploaded.mimetype || 'audio/mpeg',
+    });
+    
     formData.append('response_format', 'verbose_json');
     formData.append('speaker_labels', 'true');
     formData.append('timestamp_granularities', 'segment');
