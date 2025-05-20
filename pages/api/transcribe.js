@@ -8,17 +8,17 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // 1) CORS preflight support
+  // 1) Add CORS headers on every request
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // 2) Handle the preflight
   if (req.method === 'OPTIONS') {
-    // Tell the browser we’re OK with this preflight
     return res.status(200).end();
   }
 
-  // 2) Only POST beyond this point
+  // 3) Now only allow POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST,OPTIONS');
     return res.status(405).end('Method not allowed');
