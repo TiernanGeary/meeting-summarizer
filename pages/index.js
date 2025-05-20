@@ -6,28 +6,46 @@ export default function Home() {
   const [transcript, setTranscript] = useState('');
   const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file) {
+      setError('Please select a file to upload');
+      return;
+    }
+
     setLoading(true);
+    setError('');
+    setTranscript('');
+    setSegments([]);
 
     const formData = new FormData();
     formData.append('audio', file);
     formData.append('prompt', prompt);
 
-    const res = await fetch('/api/transcribe', {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
 
-    const data = await res.json();
-    setLoading(false);
+      const data = await res.json();
 
-    if (data.segments) {
-      setSegments(data.segments);
+      if (!res.ok) {
+        throw new Error(data.error || data.details || 'Failed to transcribe audio');
+      }
+
+      if (data.segments) {
+        setSegments(data.segments);
+      }
+
+      setTranscript(data.text || 'No transcript received');
+    } catch (err) {
+      setError(err.message || 'An error occurred while processing your request');
+      console.error('Transcription error:', err);
+    } finally {
+      setLoading(false);
     }
-
-    setTranscript(data.text || 'No transcript received');
   };
 
   return (
@@ -42,17 +60,31 @@ export default function Home() {
         rows={3}
       ></textarea>
 
-      <input
-        type="file"
-        accept="audio/*"
-        onChange={(e) => setFile(e.target.files[0])}
-        className="mb-4"
-      />
+      <div className="mb-4">
+        <input
+          type="file"
+          accept="audio/*"
+          onChange={(e) => {
+            setFile(e.target.files[0]);
+            setError('');
+          }}
+          className="mb-2"
+        />
+        <p className="text-sm text-gray-600">
+          Supported formats: MP3, WAV, M4A, etc. (Max size: 50MB)
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600">
+          {error}
+        </div>
+      )}
 
       <button
         onClick={handleUpload}
         disabled={loading}
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        className={`w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed`}
       >
         {loading ? 'Transcribing...' : 'Upload & Transcribe'}
       </button>
