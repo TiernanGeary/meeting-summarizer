@@ -48,6 +48,7 @@ app.get('/health', (req, res) => {
 // Transcription endpoint
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   try {
+    const apiKey = req.headers['x-api-key'] || process.env.WHISPER_API_KEY;
     console.log('Received transcription request');
     console.log('Request body:', req.body);
     console.log('Request file:', req.file);
@@ -57,7 +58,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    if (!process.env.WHISPER_API_KEY) {
+    if (!apiKey) {
       console.log('API key not configured');
       return res.status(500).json({ error: 'API key not configured' });
     }
@@ -80,7 +81,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
       formData,
       {
         headers: {
-          Authorization: `Bearer ${process.env.WHISPER_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           ...formData.getHeaders(),
         },
         maxContentLength: Infinity,
@@ -122,12 +123,13 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
 // Analysis endpoint
 app.post('/api/analyze', async (req, res) => {
   const { transcript } = req.body;
+  const apiKey = req.headers['x-api-key'] || process.env.WHISPER_API_KEY;
 
   if (!transcript) {
     return res.status(400).json({ error: 'No transcript provided' });
   }
 
-  if (!process.env.WHISPER_API_KEY) {
+  if (!apiKey) {
     return res.status(500).json({ error: 'API key not configured' });
   }
 
@@ -151,7 +153,7 @@ app.post('/api/analyze', async (req, res) => {
       },
       {
         headers: {
-          'Authorization': `Bearer ${process.env.WHISPER_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         }
       }

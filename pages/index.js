@@ -13,6 +13,7 @@ export default function Home() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [summary, setSummary] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [apiKey, setApiKey] = useState("");
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -93,6 +94,7 @@ export default function Home() {
       const res = await fetch(`${API_URL}/api/transcribe`, {
         method: 'POST',
         body: formData,
+        headers: apiKey ? { 'x-api-key': apiKey } : undefined,
       });
 
       const data = await res.json();
@@ -141,6 +143,7 @@ export default function Home() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(apiKey ? { 'x-api-key': apiKey } : {}),
         },
         body: JSON.stringify({ transcript }),
       });
@@ -168,6 +171,27 @@ export default function Home() {
         </h1>
 
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              🔑 Whisper API Key
+              <a 
+                href="https://lemonfox.ai" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="ml-2 text-blue-600 hover:text-blue-800 text-sm"
+              >
+                (Get your API key here)
+              </a>
+            </label>
+            <input
+              type="password"
+              placeholder="Enter your Whisper API Key"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+            />
+          </div>
+
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-4">🎥 Record Meeting</h2>
             <div className="flex items-center space-x-4">
@@ -197,18 +221,18 @@ export default function Home() {
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-4">📤 Upload Audio</h2>
             <div className="space-y-4">
-              <textarea
-                placeholder="Enter any context, speaker names, or expected terms (optional)"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+      <textarea
+        placeholder="Enter any context, speaker names, or expected terms (optional)"
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
                 className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={3}
-              ></textarea>
+        rows={3}
+      ></textarea>
 
               <div className="flex items-center space-x-4">
-                <input
-                  type="file"
-                  accept="audio/*"
+      <input
+        type="file"
+        accept="audio/*"
                   onChange={handleFileChange}
                   className="block w-full text-sm text-gray-500
                     file:mr-4 file:py-2 file:px-4
@@ -216,18 +240,18 @@ export default function Home() {
                     file:text-sm file:font-semibold
                     file:bg-blue-50 file:text-blue-700
                     hover:file:bg-blue-100"
-                />
-                <button
-                  onClick={handleUpload}
+      />
+      <button
+        onClick={handleUpload}
                   disabled={loading || !file}
                   className={`px-6 py-2 rounded-full text-white font-medium
                     ${loading || !file
                       ? 'bg-blue-300 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700'
                     } transition-colors`}
-                >
+      >
                   {loading ? 'Transcribing...' : 'Transcribe'}
-                </button>
+      </button>
               </div>
 
               {file && (
@@ -244,7 +268,7 @@ export default function Home() {
             </div>
           )}
 
-          {transcript && (
+      {transcript && (
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">📝 Transcript</h2>
@@ -272,24 +296,24 @@ export default function Home() {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="whitespace-pre-wrap text-gray-800">{summary}</p>
               </div>
-            </div>
-          )}
+        </div>
+      )}
 
-          {segments.length > 0 && (
+      {segments.length > 0 && (
             <div>
               <h2 className="text-xl font-semibold mb-4">🗣️ Speaker Breakdown</h2>
-              <div className="space-y-3">
-                {segments.map((seg, idx) => (
+          <div className="space-y-3">
+            {segments.map((seg, idx) => (
                   <div key={idx} className="border p-4 rounded-lg bg-gray-50">
-                    <p className="text-xs text-gray-600 mb-1">
-                      {seg.speaker || 'Speaker'} | ⏱ {seg.start.toFixed(1)}s - {seg.end.toFixed(1)}s
-                    </p>
+                <p className="text-xs text-gray-600 mb-1">
+                  {seg.speaker || 'Speaker'} | ⏱ {seg.start.toFixed(1)}s - {seg.end.toFixed(1)}s
+                </p>
                     <p className="text-gray-800">{seg.text}</p>
-                  </div>
-                ))}
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        </div>
+      )}
         </div>
       </div>
     </div>
