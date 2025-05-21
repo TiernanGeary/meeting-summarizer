@@ -5,15 +5,9 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3001;
-
-// Log environment variable status
-console.log('Environment check:');
-console.log('WHISPER_API_KEY exists:', !!process.env.WHISPER_API_KEY);
-console.log('WHISPER_API_KEY length:', process.env.WHISPER_API_KEY ? process.env.WHISPER_API_KEY.length : 0);
 
 // Enable CORS
 app.use(cors());
@@ -48,124 +42,95 @@ app.get('/health', (req, res) => {
 // Transcription endpoint
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   try {
-    const apiKey = req.headers['x-api-key'] || process.env.WHISPER_API_KEY;
-    console.log('Received transcription request');
-    console.log('Request body:', req.body);
-    console.log('Request file:', req.file);
-
     if (!req.file) {
-      console.log('No file uploaded');
-      return res.status(400).json({ error: 'No file uploaded' });
+      return res.status(400).json({ error: 'No audio file provided' });
     }
 
+    const apiKey = req.headers['x-api-key'];
     if (!apiKey) {
-      console.log('API key not configured');
-      return res.status(500).json({ error: 'API key not configured' });
+      return res.status(401).json({ error: 'API key is required' });
     }
 
-    console.log('API key is configured, proceeding with transcription');
-    const filePath = req.file.path;
-    const prompt = req.body.prompt || '';
+    const audioPath = req.file.path;
+    const audioBuffer = fs.readFileSync(audioPath);
+    const base64Audio = audioBuffer.toString('base64');
 
-    console.log('Creating form data for Whisper API');
-    const formData = new FormData();
-    formData.append('file', fs.createReadStream(filePath));
-    formData.append('response_format', 'verbose_json');
-    formData.append('speaker_labels', 'true');
-    formData.append('timestamp_granularities', 'segment');
-    if (prompt) formData.append('prompt', prompt);
+    const response = await fetch('https://api.lemonfox.ai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'whisper-1',
+        file: `data:audio/wav;base64,${base64Audio}`,
+        response_format: 'verbose_json',
+        language: 'en'
+      })
+    });
 
-    console.log('Sending request to Whisper API');
-    const response = await axios.post(
-      'https://api.lemonfox.ai/v1/audio/transcriptions',
-      formData,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          ...formData.getHeaders(),
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      }
-    );
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Transcription failed');
+    }
 
-    console.log('Received response from Whisper API');
-    console.log('Response status:', response.status);
-    console.log('Response data:', response.data);
-
-    // Clean up the uploaded file
-    fs.unlinkSync(filePath);
-
-    res.status(200).json(response.data);
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error('Transcription error:', {
-      message: error.message,
-      response: error.response?.data,
-      stack: error.stack
-    });
-
-    // Clean up the file if it exists
-    if (req.file && req.file.path) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (cleanupError) {
-        console.error('Error cleaning up file:', cleanupError);
-      }
+    console.error('Transcription error:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    // Clean up the uploaded file
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
     }
-
-    res.status(500).json({
-      error: 'Transcription failed',
-      details: error.response?.data || error.message
-    });
   }
 });
 
 // Analysis endpoint
 app.post('/api/analyze', async (req, res) => {
-  const { transcript } = req.body;
-  const apiKey = req.headers['x-api-key'] || process.env.WHISPER_API_KEY;
-
-  if (!transcript) {
-    return res.status(400).json({ error: 'No transcript provided' });
-  }
-
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured' });
-  }
-
   try {
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: 'No text provided' });
+    }
+
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+      return res.status(401).json({ error: 'API key is required' });
+    }
+
+    const response = await fetch('https://api.lemonfox.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
         model: 'gpt-3.5-turbo',
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that analyzes meeting transcripts and provides concise summaries and key insights.'
+            content: 'You are a helpful assistant that summarizes meeting transcripts. Focus on key points, action items, and decisions made.'
           },
           {
             role: 'user',
-            content: `Please analyze this meeting transcript and provide:\n1. A brief summary of the main points discussed\n2. Key action items or decisions made\n3. Important topics or themes\n\nTranscript:\n${transcript}`
+            content: `Please analyze this meeting transcript and provide a concise summary:\n\n${text}`
           }
-        ],
-        temperature: 0.7,
-        max_tokens: 500
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    res.json({ summary: response.data.choices[0].message.content });
-  } catch (error) {
-    console.error('Analysis error:', error.response?.data || error.message);
-    res.status(500).json({
-      error: 'Failed to analyze transcript',
-      details: error.response?.data?.error?.message || error.message
+        ]
+      })
     });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Analysis failed');
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Analysis error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

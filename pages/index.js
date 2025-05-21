@@ -13,11 +13,22 @@ export default function Home() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [summary, setSummary] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKey] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [audioChunks, setAudioChunks] = useState([]);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+
+  useEffect(() => {
+    // Check for stored API key
+    const storedApiKey = localStorage.getItem('whisperApiKey');
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -69,50 +80,79 @@ export default function Home() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleUpload = async () => {
-    if (!file) {
-      setError('Please select a file to upload');
+  const handleApiKeyChange = (e) => {
+    const newApiKey = e.target.value;
+    setApiKey(newApiKey);
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!apiKey) {
+      setError('Please enter your Whisper API key first');
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      setError('File size too large. Maximum size is 50MB.');
-      return;
-    }
-
-    setLoading(true);
+    setIsTranscribing(true);
     setError('');
     setTranscript('');
-    setSegments([]);
     setSummary('');
 
     const formData = new FormData();
     formData.append('audio', file);
-    formData.append('prompt', prompt);
 
     try {
-      const res = await fetch(`${API_URL}/api/transcribe`, {
+      const response = await fetch('/api/transcribe', {
         method: 'POST',
-        body: formData,
-        headers: apiKey ? { 'x-api-key': apiKey } : undefined,
+        headers: {
+          'x-api-key': apiKey
+        },
+        body: formData
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.details || 'Failed to transcribe audio');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Transcription failed');
       }
 
-      if (data.segments) {
-        setSegments(data.segments);
-      }
-
-      setTranscript(data.text || 'No transcript received');
+      const data = await response.json();
+      setTranscript(data.text);
+      await analyzeTranscript(data.text);
     } catch (err) {
-      console.error('Transcription error:', err);
-      setError(err.message || 'An error occurred while processing your request');
+      setError(err.message);
     } finally {
-      setLoading(false);
+      setIsTranscribing(false);
+    }
+  };
+
+  const analyzeTranscript = async (text) => {
+    if (!text) return;
+
+    setIsAnalyzing(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey
+        },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Analysis failed');
+      }
+
+      const data = await response.json();
+      setSummary(data.choices[0].message.content);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -126,40 +166,6 @@ export default function Home() {
         setFile(selectedFile);
         setError('');
       }
-    }
-  };
-
-  const analyzeTranscript = async () => {
-    if (!transcript) {
-      setError('Please transcribe audio first');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    setError('');
-
-    try {
-      const res = await fetch(`${API_URL}/api/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey ? { 'x-api-key': apiKey } : {}),
-        },
-        body: JSON.stringify({ transcript }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to analyze transcript');
-      }
-
-      setSummary(data.summary);
-    } catch (err) {
-      console.error('Analysis error:', err);
-      setError(err.message || 'An error occurred while analyzing the transcript');
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -187,9 +193,22 @@ export default function Home() {
               type="password"
               placeholder="Enter your Whisper API Key"
               value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
+              onChange={handleApiKeyChange}
               className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
             />
+            <button
+              onClick={() => {
+                if (apiKey) {
+                  localStorage.setItem('whisperApiKey', apiKey);
+                  setError('');
+                } else {
+                  setError('Please enter your API key');
+                }
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Save API Key
+            </button>
           </div>
 
           <div className="mb-6">
@@ -233,7 +252,7 @@ export default function Home() {
       <input
         type="file"
         accept="audio/*"
-                  onChange={handleFileChange}
+                  onChange={handleFileUpload}
                   className="block w-full text-sm text-gray-500
                     file:mr-4 file:py-2 file:px-4
                     file:rounded-full file:border-0
@@ -242,7 +261,7 @@ export default function Home() {
                     hover:file:bg-blue-100"
       />
       <button
-        onClick={handleUpload}
+        onClick={handleFileUpload}
                   disabled={loading || !file}
                   className={`px-6 py-2 rounded-full text-white font-medium
                     ${loading || !file

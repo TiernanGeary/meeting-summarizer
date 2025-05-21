@@ -17,18 +17,17 @@ An AI-powered application that transcribes and summarizes meeting recordings. Bu
    ```bash
    npm install
    ```
-3. Create a `.env` file in the root directory and add your Whisper API key:
-   ```
-   WHISPER_API_KEY=your_api_key_here
-   ```
-4. Start the development server:
+3. Start the development server:
    ```bash
    npm run dev
    ```
 
-## Environment Variables
+## Usage
 
-- `WHISPER_API_KEY`: Your Whisper API key from [lemonfox.ai](https://lemonfox.ai)
+1. Visit the application in your browser
+2. Enter your Whisper API key (get one from [lemonfox.ai](https://lemonfox.ai))
+3. Either record audio directly in the browser or upload an audio file
+4. Wait for the transcription and summary to be generated
 
 ## Development
 
